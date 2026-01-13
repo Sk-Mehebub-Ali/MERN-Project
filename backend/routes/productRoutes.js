@@ -11,6 +11,7 @@ import {
 import { protect, admin } from '../middleware/authMiddleware.js';
 import validateRequest from '../middleware/validator.js';
 import {body, check, param} from 'express-validator';
+import { upload } from "../middleware/multerMiddleware.js";
 
 const router = express.Router();
 
@@ -28,7 +29,7 @@ const validator = {
   ],
   createProduct: [
     check('name').trim().notEmpty().withMessage('Name is required').escape(),
-    check('image').notEmpty().withMessage('Image is required'),
+    
     check('description')
       .trim()
       .notEmpty()
@@ -60,7 +61,7 @@ const validator = {
   ],
   updateProduct: [
     check('name').trim().notEmpty().withMessage('Name is required').escape(),
-    check('image').notEmpty().withMessage('Image is required'),
+   
     check('description')
       .trim()
       .notEmpty()
@@ -83,14 +84,25 @@ const validator = {
 }
 
 router.route('/')
-  .post(validator.createProduct, validateRequest, protect, admin, createProduct)
+  .post(protect, 
+    admin, 
+    upload.fields([{ name: 'image', maxCount: 1 }]), // 1. Parse file first
+    validator.createProduct,                        // 2. Validate fields
+    validateRequest,                                // 3. Catch errors
+    createProduct
+  )
   .get(validator.getProducts, validateRequest, getProducts);
 router.get('/top', getTopProducts);
 router.post('/reviews/:id', validator.createProductReview, validateRequest, protect, createProductReview);
 router
   .route('/:id')
   .get(validator.getProduct, validateRequest, getProduct)
-  .put(validator.updateProduct, validateRequest, protect, admin, updateProduct)
+  .put(protect, 
+    admin, 
+    upload.fields([{ name: 'image', maxCount: 1 }]), // 1. Parse file first
+    validator.updateProduct, 
+    validateRequest, 
+    updateProduct)
   .delete(validator.deleteProduct, validateRequest, protect, admin, deleteProduct);
 
 export default router;

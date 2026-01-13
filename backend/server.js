@@ -3,13 +3,19 @@ import path from 'path';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import compression from 'compression';
-import 'dotenv/config';
+
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.example" });
+
 
 import productRoutes from './routes/productRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
+
+
+
 
 import connectDB from './config/db.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
@@ -21,7 +27,15 @@ connectDB();
 
 const app = express();
 
-app.use(cors());
+//app.use(cors());
+
+app.use(
+  cors({
+    origin: 'http://localhost:3000',
+    credentials: true,
+  })
+);
+
 app.use(compression());
 app.use(cookieParser());
 app.use(express.json());

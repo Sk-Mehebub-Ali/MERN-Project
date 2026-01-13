@@ -1,5 +1,6 @@
 import Product from '../models/productModel.js';
 import { deleteFile } from '../utils/file.js';
+import {uploadOnCloudnary,deletFromCloudinary} from "../utils/cloudinary.js"
 
 // @desc     Fetch All Products
 // @method   GET
@@ -64,10 +65,10 @@ const getProduct = async (req, res, next) => {
     const { id: productId } = req.params;
     const product = await Product.findById(productId);
 
-    if (!product) {
-      res.statusCode = 404;
-      throw new Error('Product not found!');
-    }
+    // if (!product) {
+    //   res.statusCode = 404;
+    //   throw new Error('Product not found!');
+    // }
 
     res.status(200).json(product);
   } catch (error) {
@@ -81,13 +82,44 @@ const getProduct = async (req, res, next) => {
 // @access   Private/Admin
 const createProduct = async (req, res, next) => {
   try {
-    const { name, image, description, brand, category, price, countInStock } =
-      req.body;
-    console.log(req.file);
+    const { name, description, brand, category, price, countInStock } = req.body;
+
+  
+
+      console.log("file :-",req.files);
+
+      
+  
+     if (!req.files || !req.files.image || req.files.image.length === 0) {
+      res.status(400);
+      throw new Error("Image is required");
+    }
+
+    const ImageLocalPath = req.files.image[0].path
+
+    console.log("Local path found:", ImageLocalPath)
+
+    console.log("Image path",ImageLocalPath);
+
+    let image;
+    try {
+      image = await uploadOnCloudnary(ImageLocalPath);
+      console.log("Image path",image);
+      
+      
+    } catch (error) {
+      next(error);
+    }
+
+    if (!image) {
+      res.status(500);
+      throw new Error("Failed to upload image to Cloudinary");
+    }
+
     const product = new Product({
       user: req.user._id,
       name,
-      image,
+      image: image.url,
       description,
       brand,
       category,
@@ -96,7 +128,7 @@ const createProduct = async (req, res, next) => {
     });
     const createdProduct = await product.save();
 
-    res.status(200).json({ message: 'Product created', createdProduct });
+    res.status(201).json({ message: 'Product created', createdProduct });
   } catch (error) {
     next(error);
   }
@@ -108,7 +140,7 @@ const createProduct = async (req, res, next) => {
 // @access   Private/Admin
 const updateProduct = async (req, res, next) => {
   try {
-    const { name, image, description, brand, category, price, countInStock } =
+    const { name, description, brand, category, price, countInStock } =
       req.body;
 
     const product = await Product.findById(req.params.id);
@@ -118,11 +150,24 @@ const updateProduct = async (req, res, next) => {
       throw new Error('Product not found!');
     }
 
-    // Save the current image path before updating
-    const previousImage = product.image;
+    const imageLocalPath = req.files?.image?.[0]?.path;
+    let newImageUrl = product.image; 
+
+    if (imageLocalPath) {
+      
+      const cloudinaryResponse = await uploadOnCloudnary(imageLocalPath);
+      
+      if (cloudinaryResponse) {
+        newImageUrl = cloudinaryResponse.secure_url;
+
+        
+      }
+    }
+
+   
 
     product.name = name || product.name;
-    product.image = image || product.image;
+    product.image = newImageUrl;
     product.description = description || product.description;
     product.brand = brand || product.brand;
     product.category = category || product.category;
@@ -131,10 +176,10 @@ const updateProduct = async (req, res, next) => {
 
     const updatedProduct = await product.save();
 
-    // Delete the previous image if it exists and if it's different from the new image
-    if (previousImage && previousImage !== updatedProduct.image) {
-      deleteFile(previousImage);
-    }
+    // // Delete the previous image if it exists and if it's different from the new image
+    // if (previousImage && previousImage !== updatedProduct.image) {
+    //   deleteFile(previousImage);
+    // }
 
     res.status(200).json({ message: 'Product updated', updatedProduct });
   } catch (error) {
@@ -155,9 +200,18 @@ const deleteProduct = async (req, res, next) => {
       res.statusCode = 404;
       throw new Error('Product not found!');
     }
-    await Product.deleteOne({ _id: product._id });
-    deleteFile(product.image); // Remove upload file
 
+
+    if (product.image) {
+      const publicId = product.image.split('/').pop().split('.')[0];
+      
+     
+      await deletFromCloudinary(publicId);
+    }
+
+
+    await Product.deleteOne({ _id: product._id });
+    
     res.status(200).json({ message: 'Product deleted' });
   } catch (error) {
     next(error);

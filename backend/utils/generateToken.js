@@ -7,6 +7,8 @@ export const generateToken = (req, res, userId) => {
   });
 
   // Setting the JWT as an HTTP-only cookie for enhanced security
+
+  
   res.cookie('jwt', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV !== 'development',

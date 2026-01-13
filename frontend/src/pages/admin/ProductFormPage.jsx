@@ -6,7 +6,6 @@ import {
   useCreateProductMutation,
   useGetProductDetailsQuery,
   useUpdateProductMutation,
-  useUploadProductImageMutation
 } from '../../slices/productsApiSlice';
 import FormContainer from '../../components/FormContainer';
 import Loader from '../../components/Loader';
@@ -15,33 +14,23 @@ import Meta from '../../components/Meta';
 
 const ProductFormPage = () => {
   const { id: productId } = useParams();
-
   const isUpdateMode = !!productId;
 
   const [name, setName] = useState('');
-  const [image, setImage] = useState('');
+  const [image, setImage] = useState(''); // Used for showing existing image path
+  const [imageFile, setImageFile] = useState(null); // STORES THE ACTUAL FILE
   const [description, setDescription] = useState('');
   const [brand, setBrand] = useState('');
   const [category, setCategory] = useState('');
   const [price, setPrice] = useState(0);
   const [countInStock, setCountInStock] = useState(0);
 
-  const getProductQueryResult = useGetProductDetailsQuery(productId);
+  const { data: product, isLoading, error } = useGetProductDetailsQuery(productId, {
+    skip: !isUpdateMode
+  });
 
-  const {
-    data: product,
-    isLoading,
-    error
-  } = isUpdateMode
-    ? getProductQueryResult
-    : { data: null, isLoading: false, error: null };
-
-  const [createProduct, { isLoading: isCreateProductLoading }] =
-    useCreateProductMutation();
-  const [updateProduct, { isLoading: isUpdateProductLoading }] =
-    useUpdateProductMutation();
-  const [uploadProductImage, { isLoading: isUploadImageLoading }] =
-    useUploadProductImageMutation();
+  const [createProduct, { isLoading: isCreateProductLoading }] = useCreateProductMutation();
+  const [updateProduct, { isLoading: isUpdateProductLoading }] = useUpdateProductMutation();
 
   const navigate = useNavigate();
 
@@ -57,65 +46,63 @@ const ProductFormPage = () => {
     }
   }, [isUpdateMode, product]);
 
-  const uploadFileHandler = async e => {
-    const formData = new FormData();
-    formData.append('image', e.target.files[0]);
-    try {
-      const res = await uploadProductImage(formData).unwrap();
-      setImage(res.imageUrl);
-      toast.success(res.message);
-    } catch (error) {
-      toast.error(error?.data?.message || error.error);
-    }
+  // JUST UPDATES LOCAL STATE, NO API CALL HERE
+  const handleFileChange = (e) => {
+    setImageFile(e.target.files[0]);
   };
 
-  const submitHandler = async e => {
+  const submitHandler = async (e) => {
     e.preventDefault();
-    try {
-      const productData = {
-        name,
-        image,
-        description,
-        brand,
-        category,
-        price,
-        countInStock
-      };
-      if (isUpdateMode) {
-        const { data } = await updateProduct({
-          productId,
-          ...productData
-        });
-        toast.success(data.message);
-      } else {
-        const { data } = await createProduct(productData);
 
-        toast.success(data.message);
+    // Validations
+    if (!isUpdateMode && !imageFile) {
+      toast.error('Please select an image');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('description', description);
+    formData.append('brand', brand);
+    formData.append('category', category);
+    formData.append('price', price);
+    formData.append('countInStock', countInStock);
+    
+    // Append the file if it exists
+    if (imageFile) {
+      formData.append('image', imageFile);
+    }
+
+    try {
+      if (isUpdateMode) {
+        // For updates, we pass the id and the formData
+        const res = await updateProduct({ productId, formData }).unwrap();
+        toast.success(res.message || 'Product Updated');
+      } else {
+        const res = await createProduct(formData).unwrap();
+        toast.success(res.message || 'Product Created');
       }
       navigate('/admin/product-list');
-    } catch (error) {
-      toast.error(error?.data?.message || error.error);
+    } catch (err) {
+      toast.error(err?.data?.message || err.error || 'Something went wrong');
+      console.log("error:-",err);
+      
     }
   };
 
   return (
     <>
-    <Meta title={'Product Form'} />
+      <Meta title={'Product Form'} />
       <Link to='/admin/product-list' className='btn btn-light my-3'>
         Go Back
       </Link>
-      {(isUpdateProductLoading ||
-        isCreateProductLoading ||
-        isUploadImageLoading) && <Loader />}
+      {(isUpdateProductLoading || isCreateProductLoading) && <Loader />}
       {isLoading ? (
         <Loader />
       ) : error ? (
-        <Message variant='danger'>
-          {error?.data?.message || error.error}
-        </Message>
+        <Message variant='danger'>{error?.data?.message || error.error}</Message>
       ) : (
         <FormContainer>
-          <Meta title={'Product Form'} />
           <h1>{isUpdateMode ? 'Update Product' : 'Create Product'}</h1>
           <Form onSubmit={submitHandler}>
             <Form.Group controlId='name'>
@@ -140,12 +127,14 @@ const ProductFormPage = () => {
 
             <Form.Group controlId='image'>
               <Form.Label>Image</Form.Label>
+              {isUpdateMode && <p className="text-muted small">Current: {image}</p>}
               <Form.Control
                 type='file'
-                onChange={uploadFileHandler}
+                onChange={handleFileChange}
               ></Form.Control>
             </Form.Group>
 
+            {/* ... rest of your Form Groups (Brand, Stock, Category, Description) remain the same ... */}
             <Form.Group controlId='brand'>
               <Form.Label>Brand</Form.Label>
               <Form.Control
@@ -181,18 +170,13 @@ const ProductFormPage = () => {
               <Form.Control
                 as='textarea'
                 rows={3}
-                type='text'
                 placeholder='Enter description'
                 value={description}
                 onChange={e => setDescription(e.target.value)}
               ></Form.Control>
             </Form.Group>
 
-            <Button
-              type='submit'
-              variant='primary'
-              style={{ marginTop: '1rem' }}
-            >
+            <Button type='submit' variant='primary' style={{ marginTop: '1rem' }}>
               {isUpdateMode ? 'Update Product' : 'Create Product'}
             </Button>
           </Form>
